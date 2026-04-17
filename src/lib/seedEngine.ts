@@ -20,15 +20,15 @@ const RAD_NAMES = [
 ];
 
 // Uneven eligibility: each radiologist gets 1-3 subspecialties weighted unevenly.
-// Some specialties (Neuro, Chest) get more rads; Vascular & Pelvis get fewer.
+// Some specialties (Neuro, Chest) get more rads; Pelvis gets fewer.
 const SUBSPECIALTY_WEIGHTS: Record<string, number> = {
   Neuro: 9,
   Chest: 8,
   Spine: 6,
-  MSK: 7,
+  MSK_Upper: 7,
+  MSK_Lower: 7,
   Body: 5,
   Pelvis: 3,
-  Vascular: 2,
 };
 
 function pickWeighted(weights: Record<string, number>, exclude: Set<string>): string | null {
@@ -192,7 +192,7 @@ export function priorityScore(c: { urgency: string; modality: string; study_type
   if (c.status === "completed") return 9999;
   const remaining = (new Date(c.tat_deadline).getTime() - Date.now()) / 60_000;
   const critical = remaining < 5; // SLA critical = <5 min remaining
-  const isCtCritical = critical && c.modality === "CT" && (c.study_type === "Neuro" || c.study_type === "Chest" || c.study_type === "Head");
+  const isCtCritical = critical && c.modality === "CT" && (c.study_type === "ct-brain" || c.study_type === "ct-thorax");
   if (isCtCritical) return 0;
   if (critical) return 1;
   if (c.urgency === "Stat") return 2;

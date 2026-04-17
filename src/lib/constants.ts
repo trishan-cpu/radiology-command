@@ -23,11 +23,15 @@ export const URGENCY_DISPLAY_OPTIONS = ["High", "Medium", "Low"] as const;
 export const STATUSES = ["pending", "assigned", "in_progress", "completed"] as const;
 export type CaseStatus = (typeof STATUSES)[number];
 
+// Canonical study list per modality (lowercase naming per spec)
 export const STUDY_TYPES_BY_MODALITY: Record<Modality, string[]> = {
-  "X-ray": ["Chest", "Abdomen", "Spine", "Knee", "Hand", "Foot", "Pelvis"],
-  CT: ["Head", "Chest", "Abdomen", "Pelvis", "Spine", "Angiography", "Neuro"],
-  MRI: ["Brain", "Spine", "Knee", "Shoulder", "Abdomen", "Pelvis"],
-  Ultrasound: ["Abdomen", "Pelvis", "Thyroid", "Vascular", "OB/GYN"],
+  "X-ray": [
+    "chest", "spine", "knee", "hand", "wrist", "elbow", "shoulder",
+    "ankle", "foot", "leg", "heel", "hip", "pelvis", "abdomen", "kub", "thigh",
+  ],
+  CT: ["ct-brain", "ct-thorax", "ct-abdomen"],
+  MRI: ["mri-spine", "mri-abdomen"],
+  Ultrasound: ["abdomen", "pelvis", "kub"],
 };
 
 export const ALL_STUDY_TYPES = Array.from(
@@ -49,12 +53,13 @@ export const MODALITY_SLA_MINUTES: Record<Modality, [number, number]> = {
 };
 
 // Subspecialty groupings for uneven eligibility distribution
+// Studies grouped by anatomical/clinical subspecialty using the new naming.
 export const SUBSPECIALTIES: Record<string, string[]> = {
-  Neuro: ["Brain", "Head", "Neuro"],
-  Chest: ["Chest"],
-  Spine: ["Spine"],
-  MSK: ["Knee", "Shoulder", "Hand", "Foot"],
-  Body: ["Abdomen", "Angiography"],
-  Pelvis: ["Pelvis", "OB/GYN"],
-  Vascular: ["Vascular", "Thyroid"],
+  Neuro: ["ct-brain"],
+  Chest: ["chest", "ct-thorax"],
+  Spine: ["spine", "mri-spine"],
+  MSK_Upper: ["hand", "wrist", "elbow", "shoulder"],
+  MSK_Lower: ["knee", "ankle", "foot", "leg", "heel", "hip", "thigh"],
+  Body: ["abdomen", "ct-abdomen", "mri-abdomen"],
+  Pelvis: ["pelvis", "kub"],
 };

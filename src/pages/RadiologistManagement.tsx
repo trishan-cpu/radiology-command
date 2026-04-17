@@ -10,7 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell,
+  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell, LabelList,
 } from "recharts";
 import { toast } from "sonner";
 import { ALL_STUDY_TYPES } from "@/lib/constants";
@@ -91,6 +91,20 @@ export default function RadiologistManagement() {
       .sort((a, b) => b.value - a.value);
   }, [eligibility, radiologists]);
 
+  // Completed cases per radiologist (only assigned + completed)
+  const completedData = useMemo(() => {
+    const counts = new Map<string, number>();
+    cases.forEach((c) => {
+      if (c.status === "completed" && c.assigned_to) {
+        counts.set(c.assigned_to, (counts.get(c.assigned_to) ?? 0) + 1);
+      }
+    });
+    return radiologists
+      .map((r) => ({ name: r.name.replace(/^Dr\.\s*/, ""), value: counts.get(r.id) ?? 0 }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [cases, radiologists]);
+
   const coverageColor = (n: number) => {
     if (n === 0) return "hsl(var(--destructive))";
     if (n <= 2) return "hsl(var(--warning))";
@@ -145,25 +159,79 @@ export default function RadiologistManagement() {
 
       <Card>
         <CardHeader><CardTitle className="text-base">Eligible Studies Coverage</CardTitle></CardHeader>
+        <CardContent>
+          <div className="h-72">
+            {coverageData.every((d) => d.value === 0) ? (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">No eligibility data yet</div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={coverageData} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} interval={0} angle={-30} textAnchor="end" height={60} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                    formatter={(v: any) => [`${v} radiologists`, "Eligible"]}
+                  />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {coverageData.map((d, i) => <Cell key={i} fill={coverageColor(d.value)} />)}
+                    <LabelList dataKey="value" position="top" fill="hsl(var(--foreground))" fontSize={11} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">Red = no coverage, amber = ≤2 rads, green = 3+ rads</p>
+
+          {/* Per-radiologist eligible studies breakdown */}
+          {radiologists.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-border space-y-2">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Eligible studies per radiologist</p>
+              <div className="space-y-1.5 max-h-64 overflow-auto pr-1">
+                {radiologists
+                  .filter((r) => r.is_active)
+                  .map((r) => {
+                    const studies = eligibilityByRad.get(r.id) ?? [];
+                    return (
+                      <div key={r.id} className="flex items-start gap-2 text-xs">
+                        <span className="font-medium min-w-[160px] truncate">{r.name}</span>
+                        <div className="flex flex-wrap gap-1 flex-1">
+                          {studies.length === 0 ? (
+                            <span className="text-muted-foreground italic">None</span>
+                          ) : (
+                            studies.map((s) => (
+                              <Badge key={s} variant="secondary" className="text-[10px] px-1.5 py-0">{s}</Badge>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Completed Cases by Radiologist</CardTitle></CardHeader>
         <CardContent className="h-72">
-          {coverageData.every((d) => d.value === 0) ? (
-            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">No eligibility data yet</div>
+          {completedData.length === 0 ? (
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">No completed cases yet</div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={coverageData}>
-                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+              <BarChart data={completedData} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} interval={0} angle={-35} textAnchor="end" height={70} />
                 <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
                 <Tooltip
                   contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
-                  formatter={(v: any) => [`${v} radiologists`, "Eligible"]}
+                  formatter={(v: any) => [`${v} cases`, "Completed"]}
                 />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {coverageData.map((d, i) => <Cell key={i} fill={coverageColor(d.value)} />)}
+                <Bar dataKey="value" fill="hsl(var(--success))" radius={[4, 4, 0, 0]}>
+                  <LabelList dataKey="value" position="top" fill="hsl(var(--foreground))" fontSize={11} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           )}
-          <p className="text-xs text-muted-foreground mt-2">Red = no coverage, amber = ≤2 rads, green = 3+ rads</p>
         </CardContent>
       </Card>
 
