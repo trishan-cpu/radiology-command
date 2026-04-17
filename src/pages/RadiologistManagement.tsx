@@ -91,6 +91,20 @@ export default function RadiologistManagement() {
       .sort((a, b) => b.value - a.value);
   }, [eligibility, radiologists]);
 
+  // Completed cases per radiologist (only assigned + completed)
+  const completedData = useMemo(() => {
+    const counts = new Map<string, number>();
+    cases.forEach((c) => {
+      if (c.status === "completed" && c.assigned_to) {
+        counts.set(c.assigned_to, (counts.get(c.assigned_to) ?? 0) + 1);
+      }
+    });
+    return radiologists
+      .map((r) => ({ name: r.name.replace(/^Dr\.\s*/, ""), value: counts.get(r.id) ?? 0 }))
+      .filter((d) => d.value > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [cases, radiologists]);
+
   const coverageColor = (n: number) => {
     if (n === 0) return "hsl(var(--destructive))";
     if (n <= 2) return "hsl(var(--warning))";
