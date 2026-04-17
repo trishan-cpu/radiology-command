@@ -192,7 +192,7 @@ export function priorityScore(c: { urgency: string; modality: string; study_type
   if (c.status === "completed") return 9999;
   const remaining = (new Date(c.tat_deadline).getTime() - Date.now()) / 60_000;
   const critical = remaining < 5; // SLA critical = <5 min remaining
-  const isCtCritical = critical && c.modality === "CT" && (c.study_type === "Neuro" || c.study_type === "Chest" || c.study_type === "Head");
+  const isCtCritical = critical && c.modality === "CT" && (c.study_type === "ct-brain" || c.study_type === "ct-thorax");
   if (isCtCritical) return 0;
   if (critical) return 1;
   if (c.urgency === "Stat") return 2;
