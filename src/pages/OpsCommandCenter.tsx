@@ -232,11 +232,13 @@ export default function OpsCommandCenter() {
           <CardContent className="h-72">
             {studyData.length === 0 ? <EmptyChart /> : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={studyData}>
-                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                <BarChart data={studyData} margin={{ top: 18, right: 8, left: 0, bottom: 4 }}>
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} interval={0} angle={-30} textAnchor="end" height={60} />
                   <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
                   <Tooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]}>
+                    <LabelList dataKey="value" position="top" fill="hsl(var(--foreground))" fontSize={11} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -249,10 +251,10 @@ export default function OpsCommandCenter() {
             {modalityData.length === 0 ? <EmptyChart /> : (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={modalityData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80} paddingAngle={2}>
+                  <Pie data={modalityData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80} paddingAngle={2} label={(e: any) => `${e.value}`}>
                     {modalityData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                  <Tooltip contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} formatter={(v: any, n: any) => [`${v} cases`, n]} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                 </PieChart>
               </ResponsiveContainer>
@@ -295,9 +297,8 @@ export default function OpsCommandCenter() {
                 <SelectTrigger className="w-44"><SelectValue placeholder="Radiologist" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Radiologists</SelectItem>
-                  {rads.filter((r) => r.is_active).map((r) => (
-                    <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                  ))}
+                  <SelectItem value="active">Active only</SelectItem>
+                  <SelectItem value="inactive">Inactive only</SelectItem>
                 </SelectContent>
               </Select>
               <Button
@@ -365,29 +366,90 @@ export default function OpsCommandCenter() {
 
         <Card>
           <CardHeader><CardTitle className="text-base">Radiologist Load</CardTitle></CardHeader>
-          <CardContent className="space-y-2 max-h-[600px] overflow-auto">
-            {rads.filter((r) => r.is_active).length === 0 ? (
-              <p className="text-xs text-muted-foreground">No active radiologists</p>
-            ) : (
-              rads.filter((r) => r.is_active)
-                .map((r) => ({ ...r, load: loadByRad.get(r.id) ?? 0 }))
-                .sort((a, b) => b.load - a.load)
-                .map((r) => {
-                  const pct = Math.min(100, (r.load / 15) * 100);
-                  const tone = r.load >= 12 ? "bg-destructive" : r.load >= 7 ? "bg-warning" : "bg-success";
-                  return (
-                    <div key={r.id} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="truncate font-medium">{r.name}</span>
+          <CardContent className="space-y-3 max-h-[600px] overflow-auto">
+            {/* Manual entry */}
+            <div className="space-y-2 pb-3 border-b border-border">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Add manual entry</p>
+              <div className="flex gap-1.5">
+                <Input
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  placeholder="Name"
+                  className="h-8 text-xs"
+                />
+                <Input
+                  value={manualCount}
+                  onChange={(e) => setManualCount(e.target.value)}
+                  placeholder="Load"
+                  type="number"
+                  min={0}
+                  className="h-8 text-xs w-20"
+                />
+                <Button
+                  size="sm"
+                  className="h-8 px-2"
+                  onClick={() => {
+                    const n = manualName.trim();
+                    const c = parseInt(manualCount, 10);
+                    if (!n || isNaN(c) || c < 0) {
+                      toast.error("Enter a name and a non-negative load");
+                      return;
+                    }
+                    setManualLoads((prev) => [
+                      ...prev,
+                      { id: `manual-${Date.now()}`, name: n, load: c },
+                    ]);
+                    setManualName("");
+                    setManualCount("");
+                  }}
+                >
+                  Add
+                </Button>
+              </div>
+            </div>
+
+            {(() => {
+              const live = rads
+                .filter((r) => r.is_active)
+                .map((r) => ({ id: r.id, name: r.name, load: loadByRad.get(r.id) ?? 0, manual: false }));
+              const merged = [
+                ...live,
+                ...manualLoads.map((m) => ({ ...m, manual: true })),
+              ].sort((a, b) => b.load - a.load);
+              if (merged.length === 0) {
+                return <p className="text-xs text-muted-foreground">No active radiologists</p>;
+              }
+              return merged.map((r) => {
+                const pct = Math.min(100, (r.load / 15) * 100);
+                const tone = r.load >= 12 ? "bg-destructive" : r.load >= 7 ? "bg-warning" : "bg-success";
+                return (
+                  <div key={r.id} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs gap-2">
+                      <span className="truncate font-medium flex items-center gap-1">
+                        {r.name}
+                        {r.manual && <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">manual</Badge>}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
                         <span className="font-mono tabular-nums text-muted-foreground">{r.load}</span>
-                      </div>
-                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className={`h-full ${tone} transition-all`} style={{ width: `${pct}%` }} />
+                        {r.manual && (
+                          <button
+                            type="button"
+                            onClick={() => setManualLoads((prev) => prev.filter((m) => m.id !== r.id))}
+                            className="text-muted-foreground hover:text-destructive text-xs"
+                            aria-label="Remove manual entry"
+                          >
+                            ×
+                          </button>
+                        )}
                       </div>
                     </div>
-                  );
-                })
-            )}
+                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className={`h-full ${tone} transition-all`} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </CardContent>
         </Card>
       </div>
