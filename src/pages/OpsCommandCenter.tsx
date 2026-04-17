@@ -17,7 +17,7 @@ import {
   AlertTriangle, Activity, UserCheck, CheckCircle2, Search, Database, Flame, ArrowDownUp,
 } from "lucide-react";
 import {
-  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, PieChart, Pie, Cell, Legend,
+  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, PieChart, Pie, Cell, Legend, LabelList,
 } from "recharts";
 import { MODALITIES, URGENCY_DISPLAY_OPTIONS, URGENCY_FROM_LABEL, URGENCY_LABEL } from "@/lib/constants";
 import { priorityScore, seedDemoData } from "@/lib/seedEngine";
