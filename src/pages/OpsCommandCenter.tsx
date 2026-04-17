@@ -169,10 +169,12 @@ export default function OpsCommandCenter() {
   }, [cases]);
 
   const filtered = useMemo(() => {
+    const activeIds = new Set(rads.filter((r) => r.is_active).map((r) => r.id));
     let list = cases.filter((c) => {
       if (modalityFilter !== "all" && c.modality !== modalityFilter) return false;
       if (urgencyFilter !== "all" && c.urgency !== urgencyFilter) return false;
-      if (radFilter !== "all" && c.assigned_to !== radFilter) return false;
+      if (radFilter === "active" && !(c.assigned_to && activeIds.has(c.assigned_to))) return false;
+      if (radFilter === "inactive" && !(c.assigned_to && !activeIds.has(c.assigned_to))) return false;
       if (breachOnly && !(c.status !== "completed" && new Date(c.tat_deadline).getTime() <= Date.now())) return false;
       if (search) {
         const q = search.toLowerCase();
@@ -188,7 +190,7 @@ export default function OpsCommandCenter() {
       list = [...list].sort((a, b) => priorityScore(a) - priorityScore(b));
     }
     return list;
-  }, [cases, modalityFilter, urgencyFilter, radFilter, breachOnly, search, sortMode]);
+  }, [cases, rads, modalityFilter, urgencyFilter, radFilter, breachOnly, search, sortMode]);
 
   const handleSeed = async () => {
     if (!confirm("This will WIPE all existing cases, radiologists, and eligibility, then insert 200 demo cases + 30 radiologists. Continue?")) return;
