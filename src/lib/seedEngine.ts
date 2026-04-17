@@ -20,15 +20,15 @@ const RAD_NAMES = [
 ];
 
 // Uneven eligibility: each radiologist gets 1-3 subspecialties weighted unevenly.
-// Some specialties (Neuro, Chest) get more rads; Vascular & Pelvis get fewer.
+// Some specialties (Neuro, Chest) get more rads; Pelvis gets fewer.
 const SUBSPECIALTY_WEIGHTS: Record<string, number> = {
   Neuro: 9,
   Chest: 8,
   Spine: 6,
-  MSK: 7,
+  MSK_Upper: 7,
+  MSK_Lower: 7,
   Body: 5,
   Pelvis: 3,
-  Vascular: 2,
 };
 
 function pickWeighted(weights: Record<string, number>, exclude: Set<string>): string | null {
