@@ -93,12 +93,18 @@ export default function OpsCommandCenter() {
   const [search, setSearch] = useState("");
   const [modalityFilter, setModalityFilter] = useState<string>("all");
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
-  const [radFilter, setRadFilter] = useState<string>("all");
+  const [radFilter, setRadFilter] = useState<string>("all"); // "all" | "active" | "inactive"
   const [breachOnly, setBreachOnly] = useState(false);
   const [sortMode, setSortMode] = useState<"recent" | "priority">("recent");
   const [selected, setSelected] = useState<CaseRow | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [, setTick] = useState(0);
+
+  // Manual radiologist load entries (local-only, for ad-hoc tracking)
+  type ManualLoad = { id: string; name: string; load: number };
+  const [manualLoads, setManualLoads] = useState<ManualLoad[]>([]);
+  const [manualName, setManualName] = useState("");
+  const [manualCount, setManualCount] = useState("");
 
   const fetchAll = async () => {
     const [{ data: caseData }, { data: radData }] = await Promise.all([
