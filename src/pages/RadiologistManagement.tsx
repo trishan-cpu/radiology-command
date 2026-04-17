@@ -7,13 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell,
+} from "recharts";
 import { toast } from "sonner";
 import { ALL_STUDY_TYPES } from "@/lib/constants";
 import { Trash2, X } from "lucide-react";
@@ -54,16 +52,10 @@ export default function RadiologistManagement() {
     const channel = supabase
       .channel("radiologist-mgmt")
       .on("postgres_changes", { event: "*", schema: "public", table: "radiologists" }, fetchAll)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "radiologist_eligibility" },
-        fetchAll,
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "radiologist_eligibility" }, fetchAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "cases" }, fetchAll)
       .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const eligibilityByRad = useMemo(() => {
@@ -84,55 +76,56 @@ export default function RadiologistManagement() {
     return m;
   }, [cases]);
 
-  const toggleStudy = (s: string) => {
-    setSelectedStudies((prev) =>
-      prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s],
-    );
+  // Eligibility coverage: how many active rads can read each study type
+  const coverageData = useMemo(() => {
+    const activeIds = new Set(radiologists.filter((r) => r.is_active).map((r) => r.id));
+    const counts = new Map<string, number>();
+    ALL_STUDY_TYPES.forEach((s) => counts.set(s, 0));
+    eligibility.forEach((e) => {
+      if (activeIds.has(e.radiologist_id)) {
+        counts.set(e.study_type, (counts.get(e.study_type) ?? 0) + 1);
+      }
+    });
+    return Array.from(counts.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [eligibility, radiologists]);
+
+  const coverageColor = (n: number) => {
+    if (n === 0) return "hsl(var(--destructive))";
+    if (n <= 2) return "hsl(var(--warning))";
+    return "hsl(var(--success))";
   };
 
-  const reset = () => {
-    setName("");
-    setEmployeeId("");
-    setSelectedStudies([]);
+  const toggleStudy = (s: string) => {
+    setSelectedStudies((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
   };
+
+  const reset = () => { setName(""); setEmployeeId(""); setSelectedStudies([]); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !employeeId) {
-      toast.error("Name and Employee ID are required");
-      return;
-    }
+    if (!name || !employeeId) { toast.error("Name and Employee ID are required"); return; }
     setSubmitting(true);
     const { data: rad, error } = await supabase
       .from("radiologists")
       .insert({ name, employee_id: employeeId, is_active: true })
       .select()
       .single();
-
     if (error || !rad) {
       setSubmitting(false);
-      toast.error("Failed to create radiologist", { description: error?.message });
-      return;
+      toast.error("Failed to create radiologist", { description: error?.message }); return;
     }
-
     if (selectedStudies.length > 0) {
-      const rows = selectedStudies.map((s) => ({
-        radiologist_id: rad.id,
-        study_type: s,
-      }));
+      const rows = selectedStudies.map((s) => ({ radiologist_id: rad.id, study_type: s }));
       await supabase.from("radiologist_eligibility").insert(rows);
     }
-
     setSubmitting(false);
-    toast.success("Radiologist added");
-    reset();
+    toast.success("Radiologist added"); reset();
   };
 
   const toggleActive = async (rad: Radiologist) => {
-    const { error } = await supabase
-      .from("radiologists")
-      .update({ is_active: !rad.is_active })
-      .eq("id", rad.id);
+    const { error } = await supabase.from("radiologists").update({ is_active: !rad.is_active }).eq("id", rad.id);
     if (error) toast.error("Failed to update");
   };
 
@@ -151,29 +144,41 @@ export default function RadiologistManagement() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Add Radiologist</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">Eligible Studies Coverage</CardTitle></CardHeader>
+        <CardContent className="h-72">
+          {coverageData.every((d) => d.value === 0) ? (
+            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">No eligibility data yet</div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={coverageData}>
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                  formatter={(v: any) => [`${v} radiologists`, "Eligible"]}
+                />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {coverageData.map((d, i) => <Cell key={i} fill={coverageColor(d.value)} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+          <p className="text-xs text-muted-foreground mt-2">Red = no coverage, amber = ≤2 rads, green = 3+ rads</p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Add Radiologist</CardTitle></CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="rname">Name *</Label>
-                <Input
-                  id="rname"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Dr. Jane Smith"
-                />
+                <Input id="rname" value={name} onChange={(e) => setName(e.target.value)} placeholder="Dr. Jane Smith" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reid">Employee ID *</Label>
-                <Input
-                  id="reid"
-                  value={employeeId}
-                  onChange={(e) => setEmployeeId(e.target.value)}
-                  placeholder="EMP-001"
-                />
+                <Input id="reid" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} placeholder="EMP-001" />
               </div>
             </div>
 
@@ -188,40 +193,29 @@ export default function RadiologistManagement() {
                       key={s}
                       onClick={() => toggleStudy(s)}
                       className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                        selected
-                          ? "bg-primary text-primary-foreground border-primary"
-                          : "bg-background border-border hover:border-primary/50"
+                        selected ? "bg-primary text-primary-foreground border-primary" : "bg-background border-border hover:border-primary/50"
                       }`}
                     >
-                      {s}
-                      {selected && <X className="inline-block ml-1 h-3 w-3" />}
+                      {s}{selected && <X className="inline-block ml-1 h-3 w-3" />}
                     </button>
                   );
                 })}
               </div>
               {selectedStudies.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  {selectedStudies.length} selected
-                </p>
+                <p className="text-xs text-muted-foreground">{selectedStudies.length} selected</p>
               )}
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Saving…" : "Add Radiologist"}
-              </Button>
-              <Button type="button" variant="ghost" onClick={reset}>
-                Reset
-              </Button>
+              <Button type="submit" disabled={submitting}>{submitting ? "Saving…" : "Add Radiologist"}</Button>
+              <Button type="button" variant="ghost" onClick={reset}>Reset</Button>
             </div>
           </form>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Roster</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle className="text-base">Roster</CardTitle></CardHeader>
         <CardContent>
           <div className="rounded-md border border-border overflow-hidden">
             <Table>
@@ -237,11 +231,7 @@ export default function RadiologistManagement() {
               </TableHeader>
               <TableBody>
                 {radiologists.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      No radiologists yet
-                    </TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No radiologists yet</TableCell></TableRow>
                 ) : (
                   radiologists.map((r) => {
                     const studies = eligibilityByRad.get(r.id) ?? [];
@@ -249,52 +239,29 @@ export default function RadiologistManagement() {
                     return (
                       <TableRow key={r.id}>
                         <TableCell className="font-medium">{r.name}</TableCell>
-                        <TableCell className="text-xs font-mono text-muted-foreground">
-                          {r.employee_id}
-                        </TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground">{r.employee_id}</TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1 max-w-md">
                             {studies.length === 0 ? (
                               <span className="text-xs text-muted-foreground italic">None</span>
                             ) : (
-                              studies.map((s) => (
-                                <Badge key={s} variant="secondary" className="text-[10px]">
-                                  {s}
-                                </Badge>
-                              ))
+                              studies.map((s) => <Badge key={s} variant="secondary" className="text-[10px]">{s}</Badge>)
                             )}
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={
-                              load >= 5
-                                ? "border-warning/40 text-warning"
-                                : "border-border"
-                            }
-                          >
+                          <Badge variant="outline" className={load >= 12 ? "border-destructive/40 text-destructive" : load >= 7 ? "border-warning/40 text-warning" : "border-border"}>
                             {load} {load === 1 ? "case" : "cases"}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Switch
-                              checked={r.is_active}
-                              onCheckedChange={() => toggleActive(r)}
-                            />
-                            <span className="text-xs text-muted-foreground">
-                              {r.is_active ? "Active" : "Inactive"}
-                            </span>
+                            <Switch checked={r.is_active} onCheckedChange={() => toggleActive(r)} />
+                            <span className="text-xs text-muted-foreground">{r.is_active ? "Active" : "Inactive"}</span>
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                            onClick={() => removeRad(r)}
-                          >
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeRad(r)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </TableCell>
