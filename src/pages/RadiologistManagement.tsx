@@ -10,7 +10,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell,
+  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell, LabelList,
 } from "recharts";
 import { toast } from "sonner";
 import { ALL_STUDY_TYPES } from "@/lib/constants";
